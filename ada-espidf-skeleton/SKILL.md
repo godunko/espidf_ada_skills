@@ -68,10 +68,14 @@ my_project/
      - must clone all required repositories if missing: `a0b-tools`, `xtensa-dynconfig` (Xtensa only), `espidf_gnat_runtime`, `bb-runtimes` (branch `gnat-fsf-15`)
      - must build `a0b-tools` always and `xtensa-dynconfig` for Xtensa MCUs only
 6. Add a `README.md` describing the combined workspace and build commands.
-7. Build a0b-tools and xtensa-dynconfig (if applicable):
+7. Bootstrap required Ada tool crates (this is not project verification):
    - `alr -C crates/a0b-tools build` (always)
    - `alr -C crates/xtensa-dynconfig build` (for Xtensa MCUs only)
-8. Validate that all referenced files exist and contain minimal compilable content.
+8. Verify the generated project using the ESP-IDF build flow:
+   - `idf.py set-target <chip>` (if target is not already configured)
+   - `idf.py build`
+   - Do not use `alr build` at project root to verify the scaffold.
+9. Validate that all referenced files exist and contain minimal compilable content.
 
 ## References to Template Repositories
 - **ESP32-C3 Integrated Ada+ESP-IDF**: https://github.com/godunko/esp32c3_template
@@ -83,6 +87,7 @@ These templates show production patterns for merging Ada and C builds via Alire+
 - In VS Code, prefer ESP-IDF extension commands for build/flash/monitor operations.
 - If the tool is available, set target via ESP-IDF command workflow instead of shell scripts.
 - Ada integration uses Alire (`alr`) for dependency and runtime management.
+- Project build/verification must use ESP-IDF (`idf.py build`), since Ada build is integrated through ESP-IDF CMake.
 - **Local crate pins**: Ada crates (a0b-tools, xtensa-dynconfig, espidf_gnat_runtime, bb-runtimes) are checked out into `crates/` and pinned via `[[pins]]` in alire.toml.
 - Xtensa MCUs require `xtensa-dynconfig` crate for configuration settings.
 - Ada code is compiled into a partially linked object file, which is then linked into the final ESP-IDF binary (not a standalone executable).
@@ -302,5 +307,6 @@ esac
 - CMakeLists.txt includes ExternalProject_Add for Ada build integration
 - alire.toml configured with chip-specific runtime (esp32s3, esp32c3, etc.)
 - setup.sh clones all required repositories and builds required tools for the selected MCU family
+- Verification step runs `idf.py build` (and optional `idf.py set-target <chip>`), not `alr build`
 - Build instructions in README cover `idf.py` workflow only, there is no `alr` workflow for building the Ada code directly, as it is meant to be built via the ESP-IDF build system.
 - No destructive edits performed
