@@ -40,18 +40,19 @@ my_project/
 ├── my_project.gpr              # Ada project file
 ├── alire.toml                  # Ada dependencies
 ├── sdkconfig.defaults          # ESP-IDF SDK defaults (chip-specific)
-├── setup.sh                    # Automated crate checkout and build helper
 ├── README.md                   # Build instructions
 └── .gitignore                  # Build artifacts to ignore
 ```
 
+All Ada crate repositories and tool builds are handled by the agent during project creation.
+
 ## Procedure
 1. Create folder structure at the project root.
-2. Checkout required Ada crates into `crates/` directory:
-   - `crates/a0b-tools` (https://github.com/godunko/a0b-tools) — always required
-   - `crates/xtensa-dynconfig` (https://github.com/godunko/xtensa-dynconfig) — required for Xtensa MCUs (esp32, esp32s2, esp32s3)
-   - `crates/espidf_gnat_runtime` (https://github.com/godunko/espidf_gnat_runtime) — runtime for ESP-IDF+Ada integration
-   - `crates/bb-runtimes` (git@github.com:alire-project/bb-runtimes.git, branch `gnat-fsf-15`) — bare-metal runtime library
+2. Clone required Ada crate repositories directly (agent handles all checkouts):
+   - Clone `https://github.com/godunko/a0b-tools` into `crates/a0b-tools` (always required)
+   - Clone `https://github.com/godunko/xtensa-dynconfig` into `crates/xtensa-dynconfig` (Xtensa MCUs only: esp32, esp32s2, esp32s3)
+   - Clone `https://github.com/godunko/espidf_gnat_runtime` into `crates/espidf_gnat_runtime`
+   - Clone `https://github.com/alire-project/bb-runtimes.git` into `crates/bb-runtimes` with branch `gnat-fsf-15`
 3. Generate ESP-IDF skeleton files:
    - `CMakeLists.txt` at project root
    - `main/CMakeLists.txt` with ExternalProject_Add for Ada build
@@ -64,11 +65,8 @@ my_project/
    - `alire.toml` with dependencies and `[[pins]]` pointing to local `crates/`
 5. Generate optional configuration files:
    - `.gitignore` for build artifacts
-   - `setup.sh` for automated crate checkout and build of required tools:
-     - must clone all required repositories if missing: `a0b-tools`, `xtensa-dynconfig` (Xtensa only), `espidf_gnat_runtime`, `bb-runtimes` (branch `gnat-fsf-15`)
-     - must build `a0b-tools` always and `xtensa-dynconfig` for Xtensa MCUs only
 6. Add a `README.md` describing the combined workspace and build commands.
-7. Bootstrap required Ada tool crates (this is not project verification):
+7. Build required Ada tool crates directly (agent handles all builds):
    - `alr -C crates/a0b-tools build` (always)
    - `alr -C crates/xtensa-dynconfig build` (for Xtensa MCUs only)
 8. Verify the generated project using the ESP-IDF build flow:
@@ -84,6 +82,7 @@ my_project/
 These templates show production patterns for merging Ada and C builds via Alire+CMake integration.
 
 ## ESP-IDF & Ada Integration Notes
+- **Agent-driven setup**: The agent handles all repository checkouts and tool builds directly. No manual scripts required.
 - In VS Code, prefer ESP-IDF extension commands for build/flash/monitor operations.
 - If the tool is available, set target via ESP-IDF command workflow instead of shell scripts.
 - Ada integration uses Alire (`alr`) for dependency and runtime management.
@@ -98,6 +97,28 @@ These templates show production patterns for merging Ada and C builds via Alire+
 - Do not overwrite existing files without user confirmation.
 - Keep generated files ASCII-only unless user explicitly requests otherwise.
 - Use concise comments only where structure is non-obvious.
+
+## Agent Implementation Details
+The agent must execute the following operations autonomously:
+
+**Repository Cloning**:
+- Use `git clone` to checkout each crate into `crates/` directory
+- For `bb-runtimes`, use `git clone -b gnat-fsf-15` to checkout the correct branch
+- Verify each checkout completes successfully before proceeding
+
+**Tool Building**:
+- Execute `alr -C crates/a0b-tools build` in a terminal to build a0b-tools
+- For Xtensa targets, execute `alr -C crates/xtensa-dynconfig build` after a0b-tools completes
+- Ensure all builds complete without errors before generating project files
+
+**Project Generation**:
+- Generate all skeleton files based on the target chip specifications
+- Replace template placeholders (`<name>`, `<target-triple>`, `<chip>`) with actual values
+- Use `run_in_terminal` to execute all git and `alr` commands asynchronously
+
+**Verification**:
+- After all files are created and tools are built, execute verification steps via terminal
+- Run `idf.py build` to ensure the project is buildable
 
 ## Skeleton Templates (Based on Official Templates)
 
@@ -250,63 +271,3 @@ begin
 end Main;
 ```
 
-### Setup Script `setup.sh`
-
-```bash
-#!/bin/bash
-set -e
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CRATES_DIR="$SCRIPT_DIR/crates"
-TARGET_CHIP="<chip>"  # esp32, esp32s2, esp32s3, esp32c3, esp32c6, ...
-
-mkdir -p "$CRATES_DIR"
-
-clone_if_missing() {
-   local repo_url="$1"
-   local dest_dir="$2"
-   local branch="$3"
-
-   if [ ! -d "$dest_dir/.git" ]; then
-      if [ -n "$branch" ]; then
-         git clone --branch "$branch" "$repo_url" "$dest_dir"
-      else
-         git clone "$repo_url" "$dest_dir"
-      fi
-   fi
-}
-
-clone_if_missing "https://github.com/godunko/a0b-tools" \
-   "$CRATES_DIR/a0b-tools" ""
-
-clone_if_missing "https://github.com/godunko/espidf_gnat_runtime" \
-   "$CRATES_DIR/espidf_gnat_runtime" ""
-
-clone_if_missing "git@github.com:alire-project/bb-runtimes.git" \
-   "$CRATES_DIR/bb-runtimes" "gnat-fsf-15"
-
-case "$TARGET_CHIP" in
-   esp32|esp32s2|esp32s3)
-      clone_if_missing "https://github.com/godunko/xtensa-dynconfig" \
-         "$CRATES_DIR/xtensa-dynconfig" ""
-      ;;
-esac
-
-alr -C "$CRATES_DIR/a0b-tools" build
-
-case "$TARGET_CHIP" in
-   esp32|esp32s2|esp32s3)
-      alr -C "$CRATES_DIR/xtensa-dynconfig" build
-      ;;
-esac
-```
-
-## Completion Checklist
-- All files created at project root (flat structure, no firmware/ or ada/ subdirs)
-- Ada and C sources coexist in separate src directories (source/, main/)
-- CMakeLists.txt includes ExternalProject_Add for Ada build integration
-- alire.toml configured with chip-specific runtime (esp32s3, esp32c3, etc.)
-- setup.sh clones all required repositories and builds required tools for the selected MCU family
-- Verification step runs `idf.py build` (and optional `idf.py set-target <chip>`), not `alr build`
-- Build instructions in README cover `idf.py` workflow only, there is no `alr` workflow for building the Ada code directly, as it is meant to be built via the ESP-IDF build system.
-- No destructive edits performed
