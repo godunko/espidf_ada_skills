@@ -48,32 +48,30 @@ All Ada crate repositories and tool builds are handled by the agent during proje
 
 ## Procedure
 1. Create folder structure at the project root.
-2. Clone required Ada crate repositories directly (agent handles all checkouts):
-   - Clone `https://github.com/godunko/a0b-tools` into `crates/a0b-tools` (always required)
-   - Clone `https://github.com/godunko/xtensa-dynconfig` into `crates/xtensa-dynconfig` (Xtensa MCUs only: esp32, esp32s2, esp32s3)
-   - Clone `https://github.com/godunko/espidf_gnat_runtime` into `crates/espidf_gnat_runtime`
-   - Clone `https://github.com/alire-project/bb-runtimes.git` into `crates/bb-runtimes` with branch `gnat-fsf-15`
-3. Generate ESP-IDF skeleton files:
+2. Generate ESP-IDF skeleton files:
    - `CMakeLists.txt` at project root
    - `main/CMakeLists.txt` with ExternalProject_Add for Ada build
    - `sdkconfig.defaults` for ESP-IDF SDK defaults. It is important:
      - to set "CONFIG_IDF_TARGET" to the correct target to ensure the ESP-IDF build system selects the right configuration for the chip
      - to set "CONFIG_LIBC_NEWLIB" to "y" to ensure the ESP-IDF build system uses newlib, which is required for the Ada runtime
-4. Generate Ada skeleton files at the same root:
+3. Generate Ada skeleton files at the same root:
    - `<name>.gpr` project file
    - `source/main.adb` hello-world style entrypoint
    - `alire.toml` with dependencies and `[[pins]]` pointing to local `crates/`
-5. Generate optional configuration files:
+4. Generate optional configuration files:
    - `.gitignore` for build artifacts
-6. Add a `README.md` describing the combined workspace and build commands.
+5. Add a `README.md` describing the combined workspace and build commands.
+6. Clone required Ada crate repositories directly (agent handles all checkouts):
+   - Clone `https://github.com/godunko/a0b-tools` into `crates/a0b-tools` (always required)
+   - Clone `https://github.com/godunko/xtensa-dynconfig` into `crates/xtensa-dynconfig` (Xtensa MCUs only: esp32, esp32s2, esp32s3)
+   - Clone `https://github.com/godunko/espidf_gnat_runtime` into `crates/espidf_gnat_runtime`
+   - Clone `https://github.com/alire-project/bb-runtimes.git` into `crates/bb-runtimes` with branch `gnat-fsf-15`
 7. Build required Ada tool crates directly (agent handles all builds):
    - `alr -C crates/a0b-tools build` (always)
    - `alr -C crates/xtensa-dynconfig build` (for Xtensa MCUs only)
 8. Verify the generated project using the ESP-IDF build flow:
-   - `idf.py set-target <chip>` (if target is not already configured)
    - `idf.py build`
    - Do not use `alr build` at project root to verify the scaffold.
-9. Validate that all referenced files exist and contain minimal compilable content.
 
 ## References to Template Repositories
 - **ESP32-C3 Integrated Ada+ESP-IDF**: https://github.com/godunko/esp32c3_template
